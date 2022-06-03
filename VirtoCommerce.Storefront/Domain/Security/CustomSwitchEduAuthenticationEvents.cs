@@ -46,7 +46,8 @@ namespace VirtoCommerce.Storefront.Domain.Security
                 {
                     Name = user.UserName,
                     FullName = principal.Claims.Where(x => x.Type == "name").FirstOrDefault().Value,
-                    FirstName = principal.Claims.Where(x => x.Type == "given_name").FirstOrDefault().Value,
+                    FirstName = principal.Claims.Where(x => x.Type == "given_name").FirstOrDefault().Value
+                    + $" ({principal.Claims.Where(x => x.Type == "swissEduPersonUniqueID").FirstOrDefault().Value})",
                     LastName = principal.Claims.Where(x => x.Type == "family_name").FirstOrDefault().Value
                 };
                 user.StoreId = "University";
