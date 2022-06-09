@@ -1,11 +1,19 @@
 using System;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
+using IdentityModel.Client;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using SwitchEduAuthentication;
 using VirtoCommerce.Storefront.AutoRestClients.NotificationsModuleApi;
 using VirtoCommerce.Storefront.AutoRestClients.NotificationsModuleApi.Models;
 using VirtoCommerce.Storefront.Domain;
@@ -32,6 +40,8 @@ namespace VirtoCommerce.Storefront.Controllers.Api
         private readonly StorefrontOptions _options;
         private readonly INotifications _platformNotificationApi;
         private readonly IdentityOptions _identityOptions;
+        private readonly IHttpClientFactory _httpClientFactory;
+        public IConfiguration Configuration { get; }
 
         public ApiAccountController(IWorkContextAccessor workContextAccessor,
             IStorefrontUrlBuilder urlBuilder,
@@ -39,7 +49,10 @@ namespace VirtoCommerce.Storefront.Controllers.Api
             IEventPublisher publisher,
             INotifications platformNotificationApi,
             IOptions<StorefrontOptions> options,
-            IOptions<IdentityOptions> identityOptions)
+            IOptions<IdentityOptions> identityOptions,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration
+            )
             : base(workContextAccessor, urlBuilder)
         {
             _signInManager = signInManager;
@@ -47,6 +60,8 @@ namespace VirtoCommerce.Storefront.Controllers.Api
             _options = options.Value;
             _platformNotificationApi = platformNotificationApi;
             _identityOptions = identityOptions.Value;
+            _httpClientFactory = httpClientFactory;
+            Configuration = configuration;
         }
 
         // GET: storefrontapi/account
@@ -273,8 +288,36 @@ namespace VirtoCommerce.Storefront.Controllers.Api
         [AllowAnonymous]
         public async Task<ActionResult> Logout()
         {
-            await _signInManager.SignOutAsync();
+            var client = _httpClientFactory.CreateClient("IDPClient");
 
+            var discoveryDocumentResponse = await client.GetDiscoveryDocumentAsync();
+            if (discoveryDocumentResponse.IsError)
+            {
+                throw new Exception(discoveryDocumentResponse.Error);
+            }
+            var token = await HttpContext.GetTokenAsync(OpenIdConnectParameterNames.AccessToken);
+            var switchToken = await HttpContext.GetTokenAsync(OpenIdConnectParameterNames.IdToken);
+
+            var accessTokenRevocationResponse = await client.RevokeTokenAsync(
+                new TokenRevocationRequest
+                {
+                    Address = discoveryDocumentResponse.RevocationEndpoint,
+                    ClientId = Configuration.GetSection("Authentication:SwitchEdu:ClientId").Value,
+                    ClientSecret = Configuration.GetSection("Authentication:SwitchEdu:ClientSecret").Value,
+                    Token = token,
+                    ClientCredentialStyle = ClientCredentialStyle.AuthorizationHeader
+                });
+
+            if (accessTokenRevocationResponse.IsError)
+            {
+                throw new Exception(accessTokenRevocationResponse.Error);
+            }
+
+            
+            await _signInManager.SignOutAsync();
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            await HttpContext.SignOutAsync(SwitchEduDefaults.AuthenticationScheme);
+            
             return NoContent();
         }
 

@@ -56,12 +56,19 @@ namespace VirtoCommerce.Storefront.Domain.Security
                 var identityResult = await _signInManager.UserManager.CreateAsync(user, user.Password);
             }
             var userRetrieved = await _signInManager.UserManager.FindByNameAsync(user.UserName);
+            context.Properties.IsPersistent = false;
             await _signInManager.SignInAsync(userRetrieved, context.Properties);
         }
 
         public override Task AuthorizationCodeReceived(AuthorizationCodeReceivedContext context)
         {
             context.Backchannel.SetBasicAuthenticationOAuth(context.TokenEndpointRequest.ClientId, context.TokenEndpointRequest.ClientSecret);
+            return Task.CompletedTask;
+        }
+
+        public override Task RedirectToIdentityProviderForSignOut(RedirectContext context)
+        {
+            context.HandleResponse();
             return Task.CompletedTask;
         }
     }

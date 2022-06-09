@@ -29,6 +29,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.WebEncoders;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Models;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
@@ -211,7 +212,12 @@ namespace VirtoCommerce.Storefront
                     }
                 );
             }
-           
+            services.AddHttpClient("IDPClient", client =>
+            {
+                client.BaseAddress = new Uri(Configuration.GetSection("Authentication:SwitchEdu:Authority").Value);
+                client.DefaultRequestHeaders.Clear();
+                client.DefaultRequestHeaders.Add(HeaderNames.Accept, "application/json");
+            });
 
             services.Configure<IdentityOptions>(Configuration.GetSection("IdentityOptions"));
             services.AddIdentity<User, Role>(options => { }).AddDefaultTokenProviders();
